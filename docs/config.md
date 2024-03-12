@@ -17,6 +17,7 @@
 | mj.task-store.timeout         | 否  | 任务过期时间，过期后删除，默认30天                            |
 | mj.proxy.host                 | 否  | 代理host，全局代理不生效时设置                             |
 | mj.proxy.port                 | 否  | 代理port，全局代理不生效时设置                             |
+| mj.ng-discord.agent-host      | 否  | agent.linus.asia 转发代理, 用于绕过访问限制          |
 | mj.ng-discord.server          | 否  | https://discord.com 反代地址                      |
 | mj.ng-discord.cdn             | 否  | https://cdn.discordapp.com 反代地址               |
 | mj.ng-discord.wss             | 否  | wss://gateway.discord.gg 反代地址                 |

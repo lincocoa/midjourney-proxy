@@ -187,13 +187,27 @@ public class DiscordServiceImpl implements DiscordService {
 		return postJson(this.discordInteractionUrl, paramsStr);
 	}
 
+	/**
+	 * [todo] 添加agentHost逻辑
+	 * @param url
+	 * @param paramsStr
+	 * @return
+	 */
 	private ResponseEntity<String> postJson(String url, String paramsStr) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.setContentType(MediaType.APPLICATION_JSON);
 		headers.set("Authorization", this.account.getUserToken());
 		headers.set("User-Agent", this.account.getUserAgent());
 		HttpEntity<String> httpEntity = new HttpEntity<>(paramsStr, headers);
-		return this.restTemplate.postForEntity(url, httpEntity, String.class);
+		String agentHost = this.discordHelper.getAgentHost();
+		if (CharSequenceUtil.isBlank(agentHost)) {
+			return this.restTemplate.postForEntity(url, httpEntity, String.class);
+		} else {
+			String agentUrl = url.replace(DiscordHelper.getHost(url), agentHost);
+			headers.set("Agent-To", url);
+			log.info(httpEntity.toString());
+			return this.restTemplate.postForEntity(url, httpEntity, String.class);
+		}
 	}
 
 	private Message<Void> postJsonAndCheckStatus(String paramsStr) {

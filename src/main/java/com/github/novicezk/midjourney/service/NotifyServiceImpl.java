@@ -9,6 +9,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.novicezk.midjourney.Constants;
 import com.github.novicezk.midjourney.ProxyProperties;
 import com.github.novicezk.midjourney.enums.TaskStatus;
+import com.github.novicezk.midjourney.support.DiscordHelper;
+import com.github.novicezk.midjourney.support.SpringContextHolder;
 import com.github.novicezk.midjourney.support.Task;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
@@ -28,12 +30,14 @@ public class NotifyServiceImpl implements NotifyService {
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 	private final ThreadPoolTaskExecutor executor;
 	private final TimedCache<String, Object> taskLocks = CacheUtil.newTimedCache(Duration.ofHours(1).toMillis());
+	private final DiscordHelper discordHelper;
 
 	public NotifyServiceImpl(ProxyProperties properties) {
 		this.executor = new ThreadPoolTaskExecutor();
 		this.executor.setCorePoolSize(properties.getNotifyPoolSize());
 		this.executor.setThreadNamePrefix("TaskNotify-");
 		this.executor.initialize();
+		this.discordHelper = SpringContextHolder.getApplicationContext().getBean(DiscordHelper.class);
 	}
 
 	@Override
@@ -66,11 +70,25 @@ public class NotifyServiceImpl implements NotifyService {
 		}
 	}
 
+	/**
+	 * [todo] 添加agentHost逻辑
+	 * @param notifyHook
+	 * @param paramsJson
+	 * @return
+	 */
 	private ResponseEntity<String> postJson(String notifyHook, String paramsJson) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.setContentType(MediaType.APPLICATION_JSON);
 		HttpEntity<String> httpEntity = new HttpEntity<>(paramsJson, headers);
-		return new RestTemplate().postForEntity(notifyHook, httpEntity, String.class);
+		String agentHost = this.discordHelper.getAgentHost();
+		if (CharSequenceUtil.isBlank(agentHost)) {
+			return new RestTemplate().postForEntity(notifyHook, httpEntity, String.class);
+		} else {
+			String agentUrl = notifyHook.replace(DiscordHelper.getHost(notifyHook), agentHost);
+			headers.set("Agent-To", notifyHook);
+			log.info(httpEntity.toString());
+			return new RestTemplate().postForEntity(agentUrl, httpEntity, String.class);
+		}
 	}
 
 }

@@ -176,6 +176,10 @@ public class ProxyProperties {
 	@Data
 	public static class NgDiscordConfig {
 		/**
+		 * agent.linus.asia 转发代理, 用于绕过访问限制
+		 */
+		private String agentHost;
+		/**
 		 * https://discord.com 反代.
 		 */
 		private String server;

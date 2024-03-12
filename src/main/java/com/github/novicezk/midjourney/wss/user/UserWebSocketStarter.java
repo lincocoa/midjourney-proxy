@@ -7,6 +7,7 @@ import cn.hutool.core.util.RandomUtil;
 import com.github.novicezk.midjourney.ProxyProperties;
 import com.github.novicezk.midjourney.ReturnCode;
 import com.github.novicezk.midjourney.domain.DiscordAccount;
+import com.github.novicezk.midjourney.support.DiscordHelper;
 import com.github.novicezk.midjourney.util.AsyncLockUtils;
 import com.github.novicezk.midjourney.wss.WebSocketStarter;
 import com.neovisionaries.ws.client.WebSocket;
@@ -40,6 +41,8 @@ public class UserWebSocketStarter extends WebSocketAdapter implements WebSocketS
 	private final DiscordAccount account;
 	private final UserMessageListener userMessageListener;
 	private final ScheduledExecutorService heartExecutor;
+	/** 转发代理服务器的host, 比如:  */
+	private final String agentHost;
 	private final String wssServer;
 	private final DataObject authData;
 
@@ -55,7 +58,8 @@ public class UserWebSocketStarter extends WebSocketAdapter implements WebSocketS
 	private long interval = 41250;
 	private boolean trying = false;
 
-	public UserWebSocketStarter(String wssServer, DiscordAccount account, UserMessageListener userMessageListener, ProxyProperties.ProxyConfig proxyConfig) {
+	public UserWebSocketStarter(String agentHost, String wssServer, DiscordAccount account, UserMessageListener userMessageListener, ProxyProperties.ProxyConfig proxyConfig) {
+		this.agentHost = agentHost;
 		this.wssServer = wssServer;
 		this.account = account;
 		this.userMessageListener = userMessageListener;
@@ -74,14 +78,27 @@ public class UserWebSocketStarter extends WebSocketAdapter implements WebSocketS
 		this.decompressor = new ZlibDecompressor(2048);
 		WebSocketFactory webSocketFactory = createWebSocketFactory(this.proxyConfig);
 		String gatewayUrl = CharSequenceUtil.isNotBlank(this.resumeGatewayUrl) ? this.resumeGatewayUrl : this.wssServer;
-		this.socket = webSocketFactory.createSocket(gatewayUrl + "/?encoding=json&v=9&compress=zlib-stream");
+		if (CharSequenceUtil.isBlank(this.agentHost)) {
+			this.socket = webSocketFactory.createSocket(gatewayUrl + "/?encoding=json&v=9&compress=zlib-stream");
+			this.socket.addHeader("Accept-Encoding", "gzip, deflate, br")
+					.addHeader("Accept-Language", "zh-CN,zh;q=0.9")
+					.addHeader("Cache-Control", "no-cache")
+					.addHeader("Pragma", "no-cache")
+					.addHeader("Sec-Websocket-Extensions", "permessage-deflate; client_max_window_bits")
+					.addHeader("User-Agent", this.account.getUserAgent());
+		} else {
+			String agentUrl = gatewayUrl.replace(DiscordHelper.getHost(gatewayUrl), this.agentHost);
+			this.socket = webSocketFactory.createSocket(agentUrl + "/?encoding=json&v=9&compress=zlib-stream");
+			this.socket.addHeader("Accept-Encoding", "gzip, deflate, br")
+					.addHeader("Accept-Language", "zh-CN,zh;q=0.9")
+					.addHeader("Cache-Control", "no-cache")
+					.addHeader("Pragma", "no-cache")
+					.addHeader("Sec-Websocket-Extensions", "permessage-deflate; client_max_window_bits")
+					.addHeader("User-Agent", this.account.getUserAgent())
+					/** 部署美国转发代理, 请求将被转发到agentTo指向的服务器 */
+					.addHeader("Agent-To", gatewayUrl);
+		}
 		this.socket.addListener(this);
-		this.socket.addHeader("Accept-Encoding", "gzip, deflate, br")
-				.addHeader("Accept-Language", "zh-CN,zh;q=0.9")
-				.addHeader("Cache-Control", "no-cache")
-				.addHeader("Pragma", "no-cache")
-				.addHeader("Sec-Websocket-Extensions", "permessage-deflate; client_max_window_bits")
-				.addHeader("User-Agent", this.account.getUserAgent());
 		this.socket.connect();
 	}
 
